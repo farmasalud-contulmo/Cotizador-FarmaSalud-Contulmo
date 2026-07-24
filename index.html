@@ -97,6 +97,19 @@
                 </div>
             </div>
 
+            <!-- Banner de IA Activa -->
+            <div id="aiActiveBanner" class="hidden mt-4 bg-blue-50/95 backdrop-blur-sm border border-blue-200 rounded-xl p-3 text-left shadow-lg relative z-20 transition-all duration-300">
+                <div class="flex justify-between items-center gap-2">
+                    <div class="flex-grow">
+                        <h4 class="text-blue-900 font-extrabold text-sm"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-blue-500"></i> Resultados IA para: <span id="aiQueryText" class="text-blue-600"></span></h4>
+                        <p id="aiBrandsText" class="text-[11px] text-blue-700 mt-1 font-semibold opacity-80 leading-tight"></p>
+                    </div>
+                    <button onclick="clearAISearch()" class="text-blue-500 hover:text-white hover:bg-blue-500 bg-blue-100 rounded-lg w-8 h-8 flex items-center justify-center font-bold transition flex-shrink-0 shadow-sm border border-blue-200">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
             <!-- Selector Monodroga vs Compuestos -->
             <div class="mt-5 flex justify-center w-full relative z-20">
                 <div class="bg-black/20 p-1 rounded-xl flex inline-flex text-xs md:text-sm font-bold backdrop-blur-sm border border-white/10 shadow-inner">
@@ -112,7 +125,7 @@
     <main class="flex-grow w-full max-w-7xl mx-auto px-4 py-6">
         <div id="statusContainer" class="flex flex-col items-center justify-center text-gray-500 my-16 gap-3">
             <div class="loader"></div>
-            <span class="font-semibold text-base text-farmaPurple">Cargando catálogo actualizado...</span>
+            <span class="font-semibold text-base text-farmaPurple">Cargando catálogo y bases de datos cruzadas...</span>
         </div>
 
         <div class="flex justify-between items-center mb-4 hidden" id="resultsHeader">
@@ -181,6 +194,11 @@
 
     <script>
         const URL_CSV_MAESTRO = "https://docs.google.com/spreadsheets/d/1GjVV8vuErPNmOIVkP-pk6VPiTrlf4IQby2v-OS0J3Zg/export?format=csv&gid=1307499139&nocache=" + new Date().getTime();
+        
+        // ⚠️ EL GID DE TU PESTAÑA EAN13 YA ESTÁ CONFIGURADO AQUÍ ⚠️
+        const GID_EAN13 = "1436350776"; 
+        
+        const URL_CSV_EAN13 = "https://docs.google.com/spreadsheets/d/1GjVV8vuErPNmOIVkP-pk6VPiTrlf4IQby2v-OS0J3Zg/export?format=csv&gid=" + GID_EAN13 + "&nocache=" + new Date().getTime();
 
         let allProducts = [];
         let filteredProducts = [];
@@ -191,8 +209,6 @@
         
         let html5QrcodeScanner = null;
         let compoundFilter = 'all'; 
-
-        // VARIABLES PARA BÚSQUEDA SEMÁNTICA
         let activeAISearchTerms = [];
 
         window.onload = () => {
@@ -202,13 +218,49 @@
             });
             document.getElementById('labFilter').addEventListener('change', () => { currentPage = 1; applyFilters(); });
 
-            Papa.parse(URL_CSV_MAESTRO, {
-                download: true,
-                header: false,
-                complete: function(results) { procesarDatos(results.data); },
-                error: function() { document.getElementById('statusContainer').innerHTML = "<p class='text-red-500 font-bold'>Error al cargar el catálogo.</p>"; }
-            });
+            cargarBasesDeDatos();
         };
+
+        // Función asíncrona para descargar las dos hojas al mismo tiempo
+        async function cargarBasesDeDatos() {
+            const fetchCSV = (url) => new Promise((resolve) => {
+                Papa.parse(url, {
+                    download: true,
+                    header: false,
+                    complete: (results) => resolve(results.data),
+                    error: (err) => resolve([]) 
+                });
+            });
+
+            try {
+                const [maestroData, ean13Data] = await Promise.all([
+                    fetchCSV(URL_CSV_MAESTRO),
+                    fetchCSV(URL_CSV_EAN13)
+                ]);
+
+                procesarDatos(maestroData, ean13Data);
+            } catch (error) {
+                console.error("Error crítico cargando datos:", error);
+                document.getElementById('statusContainer').innerHTML = "<p class='text-red-500 font-bold'>Error al cargar las bases de datos. Revisa tu conexión o el GID.</p>";
+            }
+        }
+
+        function clearAISearch() {
+            activeAISearchTerms = [];
+            document.getElementById('aiActiveBanner').classList.add('hidden');
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = "";
+            searchInput.placeholder = "Nombre, síntoma o componente...";
+            
+            const btnWand = document.getElementById('btnWand');
+            btnWand.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-lg"></i>';
+            btnWand.classList.remove('bg-red-500', 'hover:bg-red-600');
+            btnWand.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            btnWand.title = "Búsqueda Inteligente (Síntomas)";
+
+            currentPage = 1;
+            applyFilters();
+        }
 
         function setCompoundFilter(type) {
             compoundFilter = type;
@@ -232,33 +284,59 @@
             applyFilters();
         }
 
-        function procesarDatos(rawData) {
+        function procesarDatos(rawDataMaestro, rawDataEan) {
+            // 1. Mapear los códigos de barra de la nueva hoja EAN13
+            let barcodeMap = {};
+            let esValidoEAN = rawDataEan && rawDataEan.length > 0 && rawDataEan.some(row => row && String(row[0]).toUpperCase().includes("EAN_13"));
+            
+            if (esValidoEAN) {
+                for (let i = 1; i < rawDataEan.length; i++) { 
+                    let row = rawDataEan[i];
+                    if (!row || row.length < 2) continue;
+                    let ean = String(row[0]).trim();
+                    let codi = String(row[1]).trim();
+                    
+                    if (ean && codi) {
+                        if (!barcodeMap[codi]) barcodeMap[codi] = [];
+                        barcodeMap[codi].push(ean);
+                    }
+                }
+            }
+
+            // 2. Procesar el Maestro Principal y cruzar datos
             let tempProducts = [];
             let headerRowIndex = -1; 
             let lastUpdateStr = "(Sin fecha detectada)";
             
-            for (let i = 0; i < Math.min(15, rawData.length); i++) {
-                if (!rawData[i]) continue;
-                rawData[i].forEach(cell => {
+            for (let i = 0; i < Math.min(15, rawDataMaestro.length); i++) {
+                if (!rawDataMaestro[i]) continue;
+                rawDataMaestro[i].forEach(cell => {
                     let textCell = String(cell).trim();
                     if (textCell.toLowerCase().includes('fecha')) { lastUpdateStr = textCell; }
                 });
-                let rowStr = rawData[i].map(c => String(c).toUpperCase());
+                let rowStr = rawDataMaestro[i].map(c => String(c).toUpperCase());
                 if (rowStr.includes("LAB") && rowStr.includes("DETALLE")) { headerRowIndex = i; break; }
             }
             if (headerRowIndex === -1) headerRowIndex = 6;
 
-            for (let i = headerRowIndex + 1; i < rawData.length; i++) {
-                const row = rawData[i];
+            for (let i = headerRowIndex + 1; i < rawDataMaestro.length; i++) {
+                const row = rawDataMaestro[i];
                 if (!row || row.length < 8) continue;
 
                 let precioStr = typeof row[7] === 'string' ? row[7].replace(/[^0-9]/g, '') : row[7];
                 let precio = parseInt(precioStr);
                 let stock = parseInt(row[10]) || 0;
-                let nombre = String(row[4]).trim();
                 let labName = String(row[0]).trim();
-                let codigoBarras = row[3] ? String(row[3]).trim() : "";
+                let codigoInterno = String(row[2]).trim(); 
+                let codigoBarrasBase = row[3] ? String(row[3]).trim() : "";
+                let nombre = String(row[4]).trim();
                 let principioActivo = row[12] ? String(row[12]).trim() : "";
+
+                // Cruzamos la información: Unimos los códigos de la hoja base + los extra de la hoja EAN13
+                let todosLosCodigos = codigoBarrasBase;
+                if (barcodeMap[codigoInterno]) {
+                    todosLosCodigos += " " + barcodeMap[codigoInterno].join(" ");
+                }
 
                 if (nombre && !isNaN(precio) && precio > 0) {
                     tempProducts.push({
@@ -267,7 +345,7 @@
                         nombre: nombre,
                         precio: precio,
                         principio: principioActivo,
-                        barcode: codigoBarras, 
+                        barcode: todosLosCodigos.trim(), 
                         disponible: stock > 0 
                     });
                 }
@@ -305,7 +383,6 @@
                 let textMatch = false;
 
                 if (activeAISearchTerms.length > 0) {
-                    // Filtrado exigente con la IA
                     let matchIA = activeAISearchTerms.some(cleanTerm => {
                         try {
                             const safeTerm = cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -317,14 +394,12 @@
                         }
                     });
 
-                    // Si el usuario escribe algo extra (ej "jarabe"), busca dentro de los resultados de la IA
                     if (terms[0] !== "") {
                         textMatch = matchIA && terms.every(t => searchable.includes(t));
                     } else {
                         textMatch = matchIA;
                     }
                 } else {
-                    // Búsqueda normal manual
                     textMatch = terms[0] === "" ? true : terms.every(t => searchable.includes(t));
                 }
                 
@@ -386,7 +461,9 @@
                     `;
                 }
 
-                let barcodeDisplay = item.barcode ? `<div class="text-[10px] font-mono text-gray-400 mb-2 mt-auto"><i class="fa-solid fa-barcode"></i> ${item.barcode}</div>` : '';
+                // Solo muestra en pantalla el PRIMER código de barras
+                let primaryBarcode = item.barcode ? item.barcode.split(" ")[0] : "";
+                let barcodeDisplay = primaryBarcode ? `<div class="text-[10px] font-mono text-gray-400 mb-2 mt-auto"><i class="fa-solid fa-barcode"></i> ${primaryBarcode}</div>` : '';
 
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
@@ -532,26 +609,12 @@
         
         const GEMINI_API_KEY = "AQ.Ab8RN6KZs-" + "NasdJEA3H0kCFyPEzLUC84R8nlZ0ecBgeJ3lwIWQ"; 
 
-        // ----------------------------------------------------
-        // Búsqueda Semántica Inteligente (Varita Mágica)
-        // ----------------------------------------------------
         async function smartAISearch() {
             const input = document.getElementById('searchInput');
             const btnWand = document.getElementById('btnWand');
             
-            // Apagar la IA si ya estaba encendida
             if (activeAISearchTerms.length > 0) {
-                activeAISearchTerms = [];
-                input.value = "";
-                input.placeholder = "Nombre, síntoma o componente...";
-                
-                btnWand.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-lg"></i>';
-                btnWand.classList.replace('bg-red-500', 'bg-blue-500');
-                btnWand.classList.replace('hover:bg-red-600', 'hover:bg-blue-600');
-                btnWand.title = "Búsqueda Inteligente (Síntomas)";
-                
-                currentPage = 1;
-                applyFilters();
+                clearAISearch();
                 return;
             }
 
@@ -570,11 +633,10 @@
             
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
             
-            // INSTRUCCIÓN BLINDADA: Evita marcas paraguas para químicos y censura vitaminas.
             const payload = {
                 contents: [{
                     parts: [{ 
-                        text: `Eres el farmacéutico jefe de una farmacia en Chile. El cliente tiene este requerimiento o síntoma: "${query}". Genera una lista de 10 a 15 términos de búsqueda. REGLAS ESTRICTAS: 1. Si el usuario ingresa un SÍNTOMA (ej: "resfriado"), devuelve marcas comerciales asociadas (ej: "NASTIZOL", "TRIOVAL"). 2. ¡CUIDADO! Si el usuario ingresa un PRINCIPIO ACTIVO (ej: "pseudoefedrina", "paracetamol"), NO DEVUELVAS marcas paraguas como "TAPSIN" o "NASTIZOL" porque el sistema mostrará variantes como "Tapsin Día y Noche" que quizás no lo contienen. Devuelve SOLO el principio activo exacto. 3. EXCLUYE vitaminas (ej: VITAMINA C, ASCORBICO), minerales o naturales. 4. NO incluyas palabras sueltas como 'DÍA', 'NOCHE', 'PLUS', 'FORTE', 'COMPRIMIDOS'. Responde ÚNICAMENTE con un array JSON de strings en mayúsculas sin explicaciones.` 
+                        text: `Eres el farmacéutico jefe de una farmacia en Chile. El cliente tiene este requerimiento o síntoma: "${query}". Genera una lista de 10 a 15 términos de búsqueda. REGLAS ESTRICTAS: 1. Si el usuario ingresa un SÍNTOMA (ej: "resfriado"), devuelve marcas comerciales asociadas (ej: "NASTIZOL", "TRIOVAL"). 2. Si el usuario ingresa un PRINCIPIO ACTIVO (ej: "pseudoefedrina"), NO DEVUELVAS marcas paraguas como "TAPSIN" o "NASTIZOL". Devuelve SOLO el principio activo exacto. 3. EXCLUYE vitaminas, minerales o naturales. 4. NO incluyas palabras sueltas como 'DÍA', 'NOCHE', 'PLUS', 'FORTE', 'COMPRIMIDOS'. Responde ÚNICAMENTE con un array JSON de strings en mayúsculas sin explicaciones.` 
                     }]
                 }]
             };
@@ -601,7 +663,6 @@
                         input.value = "";
                         input.placeholder = `✨ IA activa para: "${originalText}". Escribe para filtrar...`;
                         
-                        // Transformar la varita en una X roja
                         btnWand.innerHTML = '<i class="fa-solid fa-xmark text-xl"></i>';
                         btnWand.classList.replace('bg-blue-500', 'bg-red-500');
                         btnWand.classList.replace('hover:bg-blue-600', 'hover:bg-red-600');
@@ -623,9 +684,6 @@
             }
         }
 
-        // ----------------------------------------------------
-        // LÓGICA DE LA CÁMARA (Para analizar cajas)
-        // ----------------------------------------------------
         function triggerAICamera() {
             document.getElementById('cameraInput').click();
         }
@@ -644,15 +702,8 @@
             const searchInput = document.getElementById('searchInput');
             searchInput.value = selectedName;
             
-            // Forzar búsqueda manual, apagando la varita mágica si estaba activa
-            activeAISearchTerms = [];
-            const btnWand = document.getElementById('btnWand');
-            btnWand.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-lg"></i>';
-            btnWand.classList.remove('bg-red-500', 'hover:bg-red-600');
-            btnWand.classList.add('bg-blue-500', 'hover:bg-blue-600');
-            btnWand.title = "Búsqueda Inteligente (Síntomas)";
-
-            currentPage = 1;
+            clearAISearch(); 
+            searchInput.value = selectedName; 
             applyFilters();
         }
 
@@ -753,14 +804,8 @@
                         const fallbackName = aiText.split(',')[0].replace(/[\[\]"]/g, '').trim();
                         input.value = fallbackName;
                         
-                        activeAISearchTerms = [];
-                        const btnWand = document.getElementById('btnWand');
-                        btnWand.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-lg"></i>';
-                        btnWand.classList.remove('bg-red-500', 'hover:bg-red-600');
-                        btnWand.classList.add('bg-blue-500', 'hover:bg-blue-600');
-                        btnWand.title = "Búsqueda Inteligente (Síntomas)";
-
-                        currentPage = 1;
+                        clearAISearch();
+                        input.value = fallbackName;
                         applyFilters();
                     }
                 } else if (data.promptFeedback) {
