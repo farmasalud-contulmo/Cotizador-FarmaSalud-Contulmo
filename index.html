@@ -64,6 +64,7 @@
                 <span id="fechaActualizacion" class="font-bold text-white bg-white/20 px-2 py-0.5 rounded"></span>
             </div>
 
+            <!-- Caja Principal -->
             <div class="bg-white p-2 rounded-2xl shadow-xl flex flex-col md:flex-row items-center gap-2">
                 <div class="w-full md:w-1/3 flex items-center border-b md:border-b-0 md:border-r border-gray-100 px-2">
                     <i class="fa-solid fa-flask text-farmaPurple mr-2"></i>
@@ -79,9 +80,8 @@
                     <input type="text" id="searchInput" class="w-full py-3 pr-36 text-base md:text-lg outline-none text-gray-700 bg-transparent placeholder-gray-400" placeholder="Nombre, síntoma o componente..." autocomplete="off" disabled>
                     
                     <div class="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
-                        
-                        <!-- BOTÓN: Búsqueda Semántica IA -->
-                        <button onclick="smartAISearch()" class="bg-blue-500 text-white w-10 h-10 rounded-xl hover:bg-blue-600 shadow-md transition flex items-center justify-center" title="Búsqueda Inteligente (Componentes o Síntomas)">
+                        <!-- Búsqueda Semántica IA -->
+                        <button onclick="smartAISearch()" class="bg-blue-500 text-white w-10 h-10 rounded-xl hover:bg-blue-600 shadow-md transition flex items-center justify-center" title="Búsqueda Inteligente (Síntomas)">
                             <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
                         </button>
 
@@ -94,6 +94,19 @@
                         </button>
                     </div>
                     <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="processAIImage(event)">
+                </div>
+            </div>
+
+            <!-- NUEVO: Banner de IA Activa -->
+            <div id="aiActiveBanner" class="hidden mt-4 bg-blue-50/95 backdrop-blur-sm border border-blue-200 rounded-xl p-3 text-left shadow-lg relative z-20 transition-all duration-300">
+                <div class="flex justify-between items-center gap-2">
+                    <div class="flex-grow">
+                        <h4 class="text-blue-900 font-extrabold text-sm"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-blue-500"></i> Resultados IA para: <span id="aiQueryText" class="text-blue-600"></span></h4>
+                        <p id="aiBrandsText" class="text-[11px] text-blue-700 mt-1 font-semibold opacity-80 leading-tight"></p>
+                    </div>
+                    <button onclick="clearAISearch()" class="text-blue-500 hover:text-white hover:bg-blue-500 bg-blue-100 rounded-lg w-8 h-8 flex items-center justify-center font-bold transition flex-shrink-0 shadow-sm border border-blue-200">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
                 </div>
             </div>
 
@@ -192,12 +205,11 @@
         let html5QrcodeScanner = null;
         let compoundFilter = 'all'; 
 
-        // VARIABLE GLOBAL PARA LA BÚSQUEDA SEMÁNTICA
+        // VARIABLES PARA BÚSQUEDA SEMÁNTICA
         let activeAISearchTerms = [];
 
         window.onload = () => {
             document.getElementById('searchInput').addEventListener('input', () => { 
-                if(activeAISearchTerms.length > 0) activeAISearchTerms = [];
                 currentPage = 1; 
                 applyFilters(); 
             });
@@ -211,9 +223,18 @@
             });
         };
 
+        function clearAISearch() {
+            activeAISearchTerms = [];
+            document.getElementById('aiActiveBanner').classList.add('hidden');
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = "";
+            searchInput.placeholder = "Nombre, síntoma o componente...";
+            currentPage = 1;
+            applyFilters();
+        }
+
         function setCompoundFilter(type) {
             compoundFilter = type;
-            
             const btnAll = document.getElementById('btnFilterAll');
             const btnMono = document.getElementById('btnFilterMono');
             const btnComp = document.getElementById('btnFilterComp');
@@ -243,15 +264,10 @@
                 if (!rawData[i]) continue;
                 rawData[i].forEach(cell => {
                     let textCell = String(cell).trim();
-                    if (textCell.toLowerCase().includes('fecha')) {
-                        lastUpdateStr = textCell;
-                    }
+                    if (textCell.toLowerCase().includes('fecha')) { lastUpdateStr = textCell; }
                 });
                 let rowStr = rawData[i].map(c => String(c).toUpperCase());
-                if (rowStr.includes("LAB") && rowStr.includes("DETALLE")) { 
-                    headerRowIndex = i; 
-                    break; 
-                }
+                if (rowStr.includes("LAB") && rowStr.includes("DETALLE")) { headerRowIndex = i; break; }
             }
             if (headerRowIndex === -1) headerRowIndex = 6;
 
@@ -309,15 +325,31 @@
 
             filteredProducts = allProducts.filter(p => {
                 const searchable = `${p.nombre} ${p.lab} ${p.principio} ${p.barcode}`.toLowerCase();
-                
                 let textMatch = false;
 
                 if (activeAISearchTerms.length > 0) {
-                    textMatch = activeAISearchTerms.some(aiTerm => 
-                        p.nombre.toLowerCase().includes(aiTerm.toLowerCase()) || 
-                        p.principio.toLowerCase().includes(aiTerm.toLowerCase())
-                    );
+                    // Filtrado exigente con la IA
+                    let matchIA = activeAISearchTerms.some(aiTerm => {
+                        if(aiTerm.length < 3) return false;
+                        try {
+                            // Limita a coincidencias de palabras completas para evitar que "PAN" atrape "PANTOPRAZOL"
+                            const safeTerm = aiTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const regex = new RegExp(`\\b${safeTerm}\\b`, 'i');
+                            return regex.test(p.nombre) || regex.test(p.principio);
+                        } catch(e) {
+                            return p.nombre.toLowerCase().includes(aiTerm.toLowerCase()) || 
+                                   p.principio.toLowerCase().includes(aiTerm.toLowerCase());
+                        }
+                    });
+
+                    // Si además de la varita el usuario escribe algo (ej: "jarabe"), lo aplicamos sobre los resultados de la IA
+                    if (terms[0] !== "") {
+                        textMatch = matchIA && terms.every(t => searchable.includes(t));
+                    } else {
+                        textMatch = matchIA;
+                    }
                 } else {
+                    // Búsqueda normal de siempre
                     textMatch = terms[0] === "" ? true : terms.every(t => searchable.includes(t));
                 }
                 
@@ -345,7 +377,7 @@
             grid.innerHTML = '';
 
             if (totalItems === 0) {
-                grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-400"><i class="fa-solid fa-pills text-5xl mb-4 text-gray-300"></i><p class="text-lg">No encontramos ese producto.</p></div>`;
+                grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-400"><i class="fa-solid fa-pills text-5xl mb-4 text-gray-300"></i><p class="text-lg">No encontramos resultados para esta búsqueda.</p></div>`;
                 document.getElementById('pagination').innerHTML = '';
                 return;
             }
@@ -541,14 +573,14 @@
             }
 
             const originalText = input.value;
+            input.disabled = true;
             input.value = "IA pensando...";
             
-            // ACTUALIZADO A gemini-3.1-flash-lite
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
             const payload = {
                 contents: [{
                     parts: [{ 
-                        text: `Eres un experto farmacéutico en Chile. El cliente está buscando medicamentos que correspondan a esta descripción o principios activos: "${query}". Genera una lista de 10 a 15 nombres comerciales base de medicamentos (vendidos en Chile) que correspondan a esa descripción, contengan esos principios activos o sirvan para ese síntoma. Responde ÚNICAMENTE con un array JSON de strings en mayúsculas. No incluyas miligramos ni formatos, solo la marca comercial base (ejemplo: ["NASTIZOL", "TAPSIN", "TRIOVAL", "CORTAGRIP"]).` 
+                        text: `Eres un experto farmacéutico en Chile. El cliente tiene este requerimiento o síntoma: "${query}". Genera una lista de 5 a 15 nombres comerciales exactos de medicamentos que se venden en Chile para esto. REGLAS ESTRICTAS: 1. Solo la marca comercial principal (ej: "NASTIZOL", "TAPSIN", "TRIOVAL"). 2. NO incluyas sufijos de variedad como 'DÍA', 'NOCHE', 'FORTE', 'PLUS'. 3. NO incluyas palabras genéricas (ej: 'COMPRIMIDOS', 'JARABE'). 4. NO incluyas principios activos amplios y genéricos como 'IBUPROFENO' solos, entrega NOMBRES COMERCIALES. Responde ÚNICAMENTE con un array JSON de strings en mayúsculas.` 
                     }]
                 }]
             };
@@ -557,6 +589,8 @@
                 const response = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
                 const data = await response.json();
                 
+                input.disabled = false;
+
                 if (data.error) {
                     alert("Error de Google: " + data.error.message);
                     input.value = originalText;
@@ -567,7 +601,16 @@
                     let aiText = data.candidates[0].content.parts[0].text.trim().replace(/```json/gi, '').replace(/```/g, '').trim();
                     try {
                         activeAISearchTerms = JSON.parse(aiText);
-                        input.value = `💡 Buscando: ${originalText}`;
+                        
+                        // Muestra el Banner y vacía la caja de texto
+                        input.value = "";
+                        input.placeholder = "Filtrar estos resultados (Opcional)...";
+                        
+                        const banner = document.getElementById('aiActiveBanner');
+                        document.getElementById('aiQueryText').innerText = `"${originalText}"`;
+                        document.getElementById('aiBrandsText').innerText = `Marcas detectadas: ${activeAISearchTerms.join(', ')}`;
+                        banner.classList.remove('hidden');
+
                         currentPage = 1;
                         applyFilters();
                     } catch (e) {
@@ -579,6 +622,7 @@
             } catch(e) { 
                 console.error(e); 
                 alert("Error de red al conectar con IA.");
+                input.disabled = false;
                 input.value = originalText;
             }
         }
@@ -604,7 +648,9 @@
             const searchInput = document.getElementById('searchInput');
             searchInput.value = selectedName;
             
+            // Forzar búsqueda manual sin la varita mágica
             activeAISearchTerms = [];
+            document.getElementById('aiActiveBanner').classList.add('hidden');
             currentPage = 1;
             applyFilters();
         }
@@ -614,6 +660,7 @@
             if (!file) return;
 
             const searchInput = document.getElementById('searchInput');
+            searchInput.disabled = true;
             searchInput.value = "Procesando imagen con IA...";
 
             const reader = new FileReader();
@@ -638,13 +685,14 @@
         }
 
         async function callGeminiCameraAPI(base64Image) {
+            const input = document.getElementById('searchInput');
             if(!GEMINI_API_KEY) {
                 alert("Primero debes ingresar tu API Key de Gemini en el código fuente.");
-                document.getElementById('searchInput').value = "";
+                input.value = "";
+                input.disabled = false;
                 return;
             }
 
-            // ACTUALIZADO A gemini-3.1-flash-lite
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
 
             const payload = {
@@ -664,9 +712,11 @@
                 });
                 const data = await response.json();
                 
+                input.disabled = false;
+
                 if (data.error) {
                     alert("Error de Google: " + data.error.message);
-                    document.getElementById('searchInput').value = "";
+                    input.value = "";
                     return;
                 }
                 
@@ -692,7 +742,7 @@
                             const modal = document.getElementById('aiModal');
                             modal.classList.remove('hidden');
                             modal.classList.add('flex');
-                            document.getElementById('searchInput').value = "Esperando selección...";
+                            input.value = "Esperando selección...";
                             
                         } else {
                             throw new Error("El JSON no es un array válido");
@@ -700,22 +750,23 @@
                     } catch (parseError) {
                         console.error("Error leyendo JSON de IA:", parseError);
                         const fallbackName = aiText.split(',')[0].replace(/[\[\]"]/g, '').trim();
-                        document.getElementById('searchInput').value = fallbackName;
+                        input.value = fallbackName;
                         activeAISearchTerms = [];
                         currentPage = 1;
                         applyFilters();
                     }
                 } else if (data.promptFeedback) {
                     alert("Google bloqueó el análisis de esta imagen por sus filtros de seguridad.");
-                    document.getElementById('searchInput').value = "";
+                    input.value = "";
                 } else {
                     alert("La IA procesó la imagen pero no devolvió un nombre válido.");
-                    document.getElementById('searchInput').value = "";
+                    input.value = "";
                 }
             } catch (error) {
                 console.error("Error AI:", error);
                 alert("Error de red al conectar con la IA. Revisa el internet.");
-                document.getElementById('searchInput').value = "";
+                input.value = "";
+                input.disabled = false;
             }
         }
     </script>
