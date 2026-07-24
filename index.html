@@ -76,12 +76,11 @@
                 <div class="w-full md:w-2/3 flex items-center px-2 relative">
                     <i class="fa-solid fa-magnifying-glass text-gray-400 text-xl mr-2"></i>
                     
-                    <!-- Aumenté el padding derecho (pr-36) para que quepan los 3 botones -->
                     <input type="text" id="searchInput" class="w-full py-3 pr-36 text-base md:text-lg outline-none text-gray-700 bg-transparent placeholder-gray-400" placeholder="Nombre, síntoma o componente..." autocomplete="off" disabled>
                     
                     <div class="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
                         
-                        <!-- NUEVO BOTÓN: Búsqueda Semántica IA -->
+                        <!-- BOTÓN: Búsqueda Semántica IA -->
                         <button onclick="smartAISearch()" class="bg-blue-500 text-white w-10 h-10 rounded-xl hover:bg-blue-600 shadow-md transition flex items-center justify-center" title="Búsqueda Inteligente (Componentes o Síntomas)">
                             <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
                         </button>
@@ -193,12 +192,11 @@
         let html5QrcodeScanner = null;
         let compoundFilter = 'all'; 
 
-        // NUEVA VARIABLE GLOBAL PARA LA BÚSQUEDA SEMÁNTICA
+        // VARIABLE GLOBAL PARA LA BÚSQUEDA SEMÁNTICA
         let activeAISearchTerms = [];
 
         window.onload = () => {
             document.getElementById('searchInput').addEventListener('input', () => { 
-                // Si el usuario vuelve a escribir a mano, limpiamos el filtro semántico de la IA
                 if(activeAISearchTerms.length > 0) activeAISearchTerms = [];
                 currentPage = 1; 
                 applyFilters(); 
@@ -312,17 +310,14 @@
             filteredProducts = allProducts.filter(p => {
                 const searchable = `${p.nombre} ${p.lab} ${p.principio} ${p.barcode}`.toLowerCase();
                 
-                // Lógica de coincidencia de texto (normal vs IA Semántica)
                 let textMatch = false;
 
                 if (activeAISearchTerms.length > 0) {
-                    // Si usamos la varita mágica, filtramos buscando si el nombre del producto incluye ALGUNA de las marcas que sugirió la IA
                     textMatch = activeAISearchTerms.some(aiTerm => 
                         p.nombre.toLowerCase().includes(aiTerm.toLowerCase()) || 
                         p.principio.toLowerCase().includes(aiTerm.toLowerCase())
                     );
                 } else {
-                    // Búsqueda normal manual
                     textMatch = terms[0] === "" ? true : terms.every(t => searchable.includes(t));
                 }
                 
@@ -525,14 +520,13 @@
         }
 
         // ==========================================
-        // LÓGICA DE INTELIGENCIA ARTIFICIAL (GEMINI)
+        // LÓGICA DE INTELIGENCIA ARTIFICIAL (GEMINI 3.5 FLASH)
         // ==========================================
         
-        // ⚠️ TU LLAVE API LISTA PARA USAR ⚠️
         const GEMINI_API_KEY = "AQ.Ab8RN6KZs-" + "NasdJEA3H0kCFyPEzLUC84R8nlZ0ecBgeJ3lwIWQ"; 
 
         // ----------------------------------------------------
-        // NUEVA FUNCIÓN: Búsqueda Semántica Inteligente
+        // Búsqueda Semántica Inteligente
         // ----------------------------------------------------
         async function smartAISearch() {
             const input = document.getElementById('searchInput');
@@ -549,7 +543,8 @@
             const originalText = input.value;
             input.value = "IA pensando...";
             
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            // ACTUALIZADO a gemini-3.5-flash
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
             const payload = {
                 contents: [{
                     parts: [{ 
@@ -588,7 +583,6 @@
             }
         }
 
-
         // ----------------------------------------------------
         // LÓGICA DE LA CÁMARA (Para analizar cajas)
         // ----------------------------------------------------
@@ -610,7 +604,6 @@
             const searchInput = document.getElementById('searchInput');
             searchInput.value = selectedName;
             
-            // Forzamos que se haga una búsqueda manual y no semántica
             activeAISearchTerms = [];
             currentPage = 1;
             applyFilters();
@@ -651,6 +644,7 @@
                 return;
             }
 
+            // ACTUALIZADO a gemini-3.5-flash
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
             const payload = {
