@@ -97,7 +97,7 @@
                 </div>
             </div>
 
-            <!-- NUEVO: Banner de IA Activa -->
+            <!-- Banner de IA Activa -->
             <div id="aiActiveBanner" class="hidden mt-4 bg-blue-50/95 backdrop-blur-sm border border-blue-200 rounded-xl p-3 text-left shadow-lg relative z-20 transition-all duration-300">
                 <div class="flex justify-between items-center gap-2">
                     <div class="flex-grow">
@@ -328,28 +328,27 @@
                 let textMatch = false;
 
                 if (activeAISearchTerms.length > 0) {
-                    // Filtrado exigente con la IA
-                    let matchIA = activeAISearchTerms.some(aiTerm => {
-                        if(aiTerm.length < 3) return false;
+                    // Filtrado exigente con la IA (Limpia espacios fantasma y busca la palabra exacta)
+                    let matchIA = activeAISearchTerms.some(cleanTerm => {
                         try {
-                            // Limita a coincidencias de palabras completas para evitar que "PAN" atrape "PANTOPRAZOL"
-                            const safeTerm = aiTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const safeTerm = cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            // Busca la palabra aislada, evitando que "PAN" agarre "PANTOPRAZOL"
                             const regex = new RegExp(`\\b${safeTerm}\\b`, 'i');
                             return regex.test(p.nombre) || regex.test(p.principio);
                         } catch(e) {
-                            return p.nombre.toLowerCase().includes(aiTerm.toLowerCase()) || 
-                                   p.principio.toLowerCase().includes(aiTerm.toLowerCase());
+                            return p.nombre.toLowerCase().includes(cleanTerm.toLowerCase()) || 
+                                   p.principio.toLowerCase().includes(cleanTerm.toLowerCase());
                         }
                     });
 
-                    // Si además de la varita el usuario escribe algo (ej: "jarabe"), lo aplicamos sobre los resultados de la IA
+                    // Si el usuario escribe algo extra en la barra (ej: "gotas"), lo aplica sobre los resultados de IA
                     if (terms[0] !== "") {
                         textMatch = matchIA && terms.every(t => searchable.includes(t));
                     } else {
                         textMatch = matchIA;
                     }
                 } else {
-                    // Búsqueda normal de siempre
+                    // Búsqueda normal manual
                     textMatch = terms[0] === "" ? true : terms.every(t => searchable.includes(t));
                 }
                 
@@ -558,14 +557,14 @@
         const GEMINI_API_KEY = "AQ.Ab8RN6KZs-" + "NasdJEA3H0kCFyPEzLUC84R8nlZ0ecBgeJ3lwIWQ"; 
 
         // ----------------------------------------------------
-        // Búsqueda Semántica Inteligente
+        // Búsqueda Semántica Inteligente (Varita Mágica)
         // ----------------------------------------------------
         async function smartAISearch() {
             const input = document.getElementById('searchInput');
             const query = input.value.trim();
             
             if(!query) {
-                alert("Escribe qué estás buscando primero (ej: 'Paracetamol Clorfenamina' o 'Para dolor de estómago').");
+                alert("Escribe qué estás buscando primero (ej: 'Resfriado' o 'Dolor de guata').");
                 return;
             }
             if(!GEMINI_API_KEY) {
@@ -577,10 +576,12 @@
             input.value = "IA pensando...";
             
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+            
+            // INSTRUCCIÓN MEJORADA: Obliga a buscar genéricos + marcas y evita alucinaciones.
             const payload = {
                 contents: [{
                     parts: [{ 
-                        text: `Eres un experto farmacéutico en Chile. El cliente tiene este requerimiento o síntoma: "${query}". Genera una lista de 5 a 15 nombres comerciales exactos de medicamentos que se venden en Chile para esto. REGLAS ESTRICTAS: 1. Solo la marca comercial principal (ej: "NASTIZOL", "TAPSIN", "TRIOVAL"). 2. NO incluyas sufijos de variedad como 'DÍA', 'NOCHE', 'FORTE', 'PLUS'. 3. NO incluyas palabras genéricas (ej: 'COMPRIMIDOS', 'JARABE'). 4. NO incluyas principios activos amplios y genéricos como 'IBUPROFENO' solos, entrega NOMBRES COMERCIALES. Responde ÚNICAMENTE con un array JSON de strings en mayúsculas.` 
+                        text: `Eres el farmacéutico jefe de una farmacia en Chile. El cliente tiene esta consulta, síntoma o requerimiento: "${query}". Genera una lista de 10 a 20 términos estratégicos para buscar en nuestro inventario. REGLAS ESTRICTAS: 1. Incluye los nombres de los PRINCIPIOS ACTIVOS GENÉRICOS que sirven para esto (ej: PARACETAMOL, CLORFENAMINA, IBUPROFENO). 2. Incluye las MARCAS COMERCIALES más vendidas en Chile para esto (ej: TAPSIN, NASTIZOL, TRIOVAL). 3. NO inventes medicamentos que no existen. 4. Devuelve ÚNICAMENTE un array JSON puro de strings en mayúsculas.` 
                     }]
                 }]
             };
@@ -600,15 +601,17 @@
                 if (data.candidates && data.candidates.length > 0) {
                     let aiText = data.candidates[0].content.parts[0].text.trim().replace(/```json/gi, '').replace(/```/g, '').trim();
                     try {
-                        activeAISearchTerms = JSON.parse(aiText);
+                        const rawTerms = JSON.parse(aiText);
                         
-                        // Muestra el Banner y vacía la caja de texto
+                        // Limpia los espacios fantasma que dejaba la IA (ej: " TRIOVAL" -> "TRIOVAL")
+                        activeAISearchTerms = rawTerms.map(term => term.trim()).filter(term => term.length >= 3);
+                        
                         input.value = "";
-                        input.placeholder = "Filtrar estos resultados (Opcional)...";
+                        input.placeholder = "Filtrar estos resultados (Ej: Escribe 'gotas' o 'jarabe')...";
                         
                         const banner = document.getElementById('aiActiveBanner');
                         document.getElementById('aiQueryText').innerText = `"${originalText}"`;
-                        document.getElementById('aiBrandsText').innerText = `Marcas detectadas: ${activeAISearchTerms.join(', ')}`;
+                        document.getElementById('aiBrandsText').innerText = `Opciones recomendadas: ${activeAISearchTerms.join(', ')}`;
                         banner.classList.remove('hidden');
 
                         currentPage = 1;
@@ -648,7 +651,7 @@
             const searchInput = document.getElementById('searchInput');
             searchInput.value = selectedName;
             
-            // Forzar búsqueda manual sin la varita mágica
+            // Forzar búsqueda manual, apagando la varita mágica
             activeAISearchTerms = [];
             document.getElementById('aiActiveBanner').classList.add('hidden');
             currentPage = 1;
