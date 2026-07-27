@@ -80,6 +80,7 @@
                     <input type="text" id="searchInput" class="w-full py-3 pr-36 text-base md:text-lg outline-none text-gray-700 bg-transparent placeholder-gray-400" placeholder="Nombre, síntoma o componente..." autocomplete="off" disabled>
                     
                     <div class="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
+                        <!-- Búsqueda Semántica IA -->
                         <button id="btnWand" onclick="smartAISearch()" class="bg-blue-500 text-white w-10 h-10 rounded-xl hover:bg-blue-600 shadow-md transition flex items-center justify-center" title="Búsqueda Inteligente (Síntomas)">
                             <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
                         </button>
@@ -122,7 +123,7 @@
     <main class="flex-grow w-full max-w-7xl mx-auto px-4 py-6">
         <div id="statusContainer" class="flex flex-col items-center justify-center text-gray-500 my-16 gap-3">
             <div class="loader"></div>
-            <span class="font-semibold text-base text-farmaPurple text-center">Conectando con el ISP y cruzando bases de datos...<br><span class="text-xs text-gray-400 font-normal">Esto puede tardar unos segundos</span></span>
+            <span class="font-semibold text-base text-farmaPurple text-center">Conectando con bases de datos...<br><span class="text-xs text-gray-400 font-normal">Sincronizando maestro e ISP</span></span>
         </div>
 
         <div class="flex justify-between items-center mb-4 hidden" id="resultsHeader">
@@ -243,16 +244,14 @@
             }
         }
 
-        // --- LIMPIADOR DE TEXTO (NUEVA VERSIÓN SÚPER BLINDADA) ---
         function limpiarTextoFarma(texto) {
             if(!texto) return "";
             return texto.toUpperCase()
-                .replace(/\([^)]*\)/g, '') // ¡NUEVO! Quita los paréntesis y su contenido (ej: quita "(SERTRALINA)")
-                .replace(/\b[0-9]+([.,][0-9]+)?\s*(MG|ML|GR|G|MCG|UI|U|UI\/ML|%|L|KG)\b/gi, '') // Quita dosis
-                // ¡NUEVO! Ampliación gigante de formatos a eliminar para desnudar la marca
+                .replace(/\([^)]*\)/g, '') 
+                .replace(/\b[0-9]+([.,][0-9]+)?\s*(MG|ML|GR|G|MCG|UI|U|UI\/ML|%|L|KG)\b/gi, '') 
                 .replace(/\b(COMP|COMPRIMIDO|COMPRIMIDOS|RECUBIERTO|RECUBIERTOS|JBE|JARABE|CAPS|CAPSULAS|SUSP|SUSPENSION|SOL|SOLUCION|GTS|GOTAS|SOBRES|INY|INYECTABLE|CREMA|POMADA|UNG|OVULOS|AMP|FCO|TAB|PILD|CM|REC|FORTE|PLUS)\b/gi, '') 
-                .replace(/[^A-ZÑ\s]/g, ' ') // Deja solo letras
-                .replace(/\s+/g, ' ') // Quita espacios extra
+                .replace(/[^A-ZÑ\s]/g, ' ') 
+                .replace(/\s+/g, ' ') 
                 .trim();
         }
 
@@ -296,7 +295,6 @@
         }
 
         function procesarDatos(rawDataMaestro, rawDataEan, rawDataIsp) {
-            // 1. Mapear Códigos de Barra Extra (EAN13)
             let barcodeMap = {};
             let esValidoEAN = rawDataEan && rawDataEan.length > 0 && rawDataEan.some(row => row && String(row[0]).toUpperCase().includes("EAN_13"));
             
@@ -313,7 +311,6 @@
                 }
             }
 
-            // 2. Mapear Principios Activos Oficiales (ISP)
             let ispMapExacto = {};
             let ispMapLimpio = {};
 
@@ -328,12 +325,11 @@
                     let nombreComercialISP = String(row[COL_NOMBRE_ISP]).trim().toUpperCase();
                     let principioOficialISP = String(row[COL_PRINCIPIO_ISP]).trim().toUpperCase();
                     
-                    // ¡EL RESCATE DE PARÉNTESIS! (Para los casos como el Eleval)
                     if (!principioOficialISP || principioOficialISP === "") {
                         if (nombreComercialISP.includes('(')) {
                             let match = nombreComercialISP.match(/\(([^)]+)\)/);
                             if (match) {
-                                principioOficialISP = match[1].trim(); // Extrae lo que esté entre los ()
+                                principioOficialISP = match[1].trim(); 
                             }
                         }
                     }
@@ -349,10 +345,6 @@
                 }
             }
 
-            // Llaves del ISP ordenadas para Fuzzy Match
-            const sortedIspKeys = Object.keys(ispMapLimpio).sort((a, b) => b.length - a.length);
-
-            // 3. Procesar el Maestro Principal y aplicar el cruce
             let tempProducts = [];
             let headerRowIndex = -1; 
             let lastUpdateStr = "(Sin fecha detectada)";
@@ -386,30 +378,33 @@
                 let principioActivo = row[12] ? String(row[12]).trim() : "";
                 let principioEncontrado = "";
                 
-                // MOTOR DE CRUCE INTELIGENTE MEJORADO
+                // MOTOR DE CRUCE ULTRA-RÁPIDO (O(1) - Diccionario Directo)
                 if (ispMapExacto[nombreParaCruce]) {
                     principioEncontrado = ispMapExacto[nombreParaCruce];
                 } else if (ispMapLimpio[nombreLimpioMaestro]) {
                     principioEncontrado = ispMapLimpio[nombreLimpioMaestro];
                 } else {
-                    // Cruce Difuso (Fuzzy) con Regex estricto para evitar falsos positivos
-                    let bestMatch = sortedIspKeys.find(k => {
-                        if(k.length < 4) return false; 
-                        let regexK = new RegExp(`\\b${k}\\b`, 'i');
-                        let regexM = new RegExp(`\\b${nombreLimpioMaestro}\\b`, 'i');
-                        return regexK.test(nombreLimpioMaestro) || regexM.test(k);
-                    });
-                    if (bestMatch) {
-                        principioEncontrado = ispMapLimpio[bestMatch];
+                    // Busca solo usando las primeras palabras (la marca) instantáneamente
+                    let palabras = nombreLimpioMaestro.split(' ');
+                    if (palabras.length > 0) {
+                        let p1 = palabras[0];
+                        let p2 = palabras.length > 1 ? p1 + ' ' + palabras[1] : null;
+                        let p3 = palabras.length > 2 ? p2 + ' ' + palabras[2] : null;
+
+                        if (p3 && ispMapLimpio[p3]) {
+                            principioEncontrado = ispMapLimpio[p3];
+                        } else if (p2 && ispMapLimpio[p2]) {
+                            principioEncontrado = ispMapLimpio[p2];
+                        } else if (p1 && p1.length >= 4 && ispMapLimpio[p1]) {
+                            principioEncontrado = ispMapLimpio[p1];
+                        }
                     }
                 }
 
-                // Protección Anti-Borrado: Si el ISP entregó algo válido, lo usamos. Si no, mantenemos el tuyo.
                 if (principioEncontrado && principioEncontrado !== "") {
                     principioActivo = principioEncontrado;
                 }
 
-                // NORMALIZADOR DE PRINCIPIOS ACTIVOS (Fórmulas Limpias con "+")
                 let principioNormalizado = principioActivo
                     .replace(/\s*\/\/\s*/g, ' + ') 
                     .replace(/\s*\/\s*/g, ' + ')   
@@ -554,7 +549,6 @@
                     `;
                 }
 
-                // CAJITA DE COMPOSICIÓN LIMPIA ARRIBA DEL CÓDIGO DE BARRAS
                 let principioDisplay = item.principio 
                     ? `<div class="text-[10px] font-bold text-farmaPurple/80 bg-purple-50 px-2 py-1.5 rounded-lg border border-purple-100 mb-2 flex-grow uppercase leading-tight flex items-start gap-1.5"><i class="fa-solid fa-flask mt-0.5 opacity-60"></i> <span class="texto-ajustable">${item.principio}</span></div>`
                     : `<div class="flex-grow"></div>`;
