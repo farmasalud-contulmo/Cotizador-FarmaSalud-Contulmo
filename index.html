@@ -219,7 +219,6 @@
             cargarBasesDeDatos();
         };
 
-        // Descarga simultánea de bases
         async function cargarBasesDeDatos() {
             const fetchCSV = (url) => new Promise((resolve) => {
                 Papa.parse(url, {
@@ -244,14 +243,16 @@
             }
         }
 
-        // LIMPIADOR DE TEXTO: Prepara las cadenas para buscar y cruzar
+        // --- LIMPIADOR DE TEXTO (NUEVA VERSIÓN SÚPER BLINDADA) ---
         function limpiarTextoFarma(texto) {
             if(!texto) return "";
             return texto.toUpperCase()
-                .replace(/\b[0-9]+([.,][0-9]+)?\s*(MG|ML|GR|G|MCG|UI|U|UI\/ML|%|L|KG)\b/gi, '')
-                .replace(/\b(COMP|JBE|CAPS|SUSP|SOL|GTS|GOTAS|SOBRES|INY|CREMA|POMADA|UNG|OVULOS|AMP|FCO|TAB|PILD|CM|REC|FORTE|PLUS)\b/gi, '')
-                .replace(/[^A-ZÑ\s]/g, ' ') 
-                .replace(/\s+/g, ' ') 
+                .replace(/\([^)]*\)/g, '') // ¡NUEVO! Quita los paréntesis y su contenido (ej: quita "(SERTRALINA)")
+                .replace(/\b[0-9]+([.,][0-9]+)?\s*(MG|ML|GR|G|MCG|UI|U|UI\/ML|%|L|KG)\b/gi, '') // Quita dosis
+                // ¡NUEVO! Ampliación gigante de formatos a eliminar para desnudar la marca
+                .replace(/\b(COMP|COMPRIMIDO|COMPRIMIDOS|RECUBIERTO|RECUBIERTOS|JBE|JARABE|CAPS|CAPSULAS|SUSP|SUSPENSION|SOL|SOLUCION|GTS|GOTAS|SOBRES|INY|INYECTABLE|CREMA|POMADA|UNG|OVULOS|AMP|FCO|TAB|PILD|CM|REC|FORTE|PLUS)\b/gi, '') 
+                .replace(/[^A-ZÑ\s]/g, ' ') // Deja solo letras
+                .replace(/\s+/g, ' ') // Quita espacios extra
                 .trim();
         }
 
@@ -316,9 +317,8 @@
             let ispMapExacto = {};
             let ispMapLimpio = {};
 
-            // ⚠️ CORRECCIÓN DE COLUMNAS SEGÚN TU IMAGEN ⚠️
-            const COL_NOMBRE_ISP = 1;    // Columna B (Índice 1)
-            const COL_PRINCIPIO_ISP = 3; // Columna D (Índice 3)
+            const COL_NOMBRE_ISP = 1;    // Columna B 
+            const COL_PRINCIPIO_ISP = 3; // Columna D 
 
             if (rawDataIsp && rawDataIsp.length > 0) {
                 for (let i = 1; i < rawDataIsp.length; i++) { 
@@ -328,6 +328,16 @@
                     let nombreComercialISP = String(row[COL_NOMBRE_ISP]).trim().toUpperCase();
                     let principioOficialISP = String(row[COL_PRINCIPIO_ISP]).trim().toUpperCase();
                     
+                    // ¡EL RESCATE DE PARÉNTESIS! (Para los casos como el Eleval)
+                    if (!principioOficialISP || principioOficialISP === "") {
+                        if (nombreComercialISP.includes('(')) {
+                            let match = nombreComercialISP.match(/\(([^)]+)\)/);
+                            if (match) {
+                                principioOficialISP = match[1].trim(); // Extrae lo que esté entre los ()
+                            }
+                        }
+                    }
+
                     if (nombreComercialISP && principioOficialISP) {
                         ispMapExacto[nombreComercialISP] = principioOficialISP;
                         
@@ -374,23 +384,35 @@
                 let nombreLimpioMaestro = limpiarTextoFarma(nombreParaCruce);
                 
                 let principioActivo = row[12] ? String(row[12]).trim() : "";
+                let principioEncontrado = "";
                 
-                // MOTOR DE CRUCE INTELIGENTE (FUZZY MATCH)
+                // MOTOR DE CRUCE INTELIGENTE MEJORADO
                 if (ispMapExacto[nombreParaCruce]) {
-                    principioActivo = ispMapExacto[nombreParaCruce];
+                    principioEncontrado = ispMapExacto[nombreParaCruce];
                 } else if (ispMapLimpio[nombreLimpioMaestro]) {
-                    principioActivo = ispMapLimpio[nombreLimpioMaestro];
+                    principioEncontrado = ispMapLimpio[nombreLimpioMaestro];
                 } else {
-                    let bestMatch = sortedIspKeys.find(k => nombreLimpioMaestro.includes(k) || k.includes(nombreLimpioMaestro));
+                    // Cruce Difuso (Fuzzy) con Regex estricto para evitar falsos positivos
+                    let bestMatch = sortedIspKeys.find(k => {
+                        if(k.length < 4) return false; 
+                        let regexK = new RegExp(`\\b${k}\\b`, 'i');
+                        let regexM = new RegExp(`\\b${nombreLimpioMaestro}\\b`, 'i');
+                        return regexK.test(nombreLimpioMaestro) || regexM.test(k);
+                    });
                     if (bestMatch) {
-                        principioActivo = ispMapLimpio[bestMatch];
+                        principioEncontrado = ispMapLimpio[bestMatch];
                     }
+                }
+
+                // Protección Anti-Borrado: Si el ISP entregó algo válido, lo usamos. Si no, mantenemos el tuyo.
+                if (principioEncontrado && principioEncontrado !== "") {
+                    principioActivo = principioEncontrado;
                 }
 
                 // NORMALIZADOR DE PRINCIPIOS ACTIVOS (Fórmulas Limpias con "+")
                 let principioNormalizado = principioActivo
-                    .replace(/\s*\/\/\s*/g, ' + ') // Maneja los "//" del ISP
-                    .replace(/\s*\/\s*/g, ' + ')   // Maneja "/" simple
+                    .replace(/\s*\/\/\s*/g, ' + ') 
+                    .replace(/\s*\/\s*/g, ' + ')   
                     .replace(/\s*-\s*/g, ' + ')
                     .replace(/\s*;\s*/g, ' + ')
                     .replace(/\s*,\s*/g, ' + ')
