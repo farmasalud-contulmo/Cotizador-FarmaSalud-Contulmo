@@ -80,15 +80,12 @@
                     <input type="text" id="searchInput" class="w-full py-3 pr-36 text-base md:text-lg outline-none text-gray-700 bg-transparent placeholder-gray-400" placeholder="Nombre, síntoma o componente..." autocomplete="off" disabled>
                     
                     <div class="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
-                        <!-- Búsqueda Semántica IA -->
                         <button id="btnWand" onclick="smartAISearch()" class="bg-blue-500 text-white w-10 h-10 rounded-xl hover:bg-blue-600 shadow-md transition flex items-center justify-center" title="Búsqueda Inteligente (Síntomas)">
                             <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
                         </button>
-
                         <button onclick="triggerAICamera()" class="bg-farmaPurple text-white w-10 h-10 rounded-xl hover:bg-purple-700 shadow-md transition flex items-center justify-center" title="Analizar caja con IA">
                             <i class="fa-solid fa-camera text-lg"></i>
                         </button>
-
                         <button onclick="startScanner()" class="bg-farmaGreen text-white w-10 h-10 rounded-xl hover:bg-green-600 shadow-md transition flex items-center justify-center" title="Escanear Código">
                             <i class="fa-solid fa-barcode text-lg"></i>
                         </button>
@@ -247,16 +244,14 @@
             }
         }
 
-        // LIMPIADOR DE TEXTO: Prepara las cadenas para buscar y cruzar como si fuéramos una IA.
+        // LIMPIADOR DE TEXTO: Prepara las cadenas para buscar y cruzar
         function limpiarTextoFarma(texto) {
             if(!texto) return "";
             return texto.toUpperCase()
-                // Elimina miligramos, % y medidas
                 .replace(/\b[0-9]+([.,][0-9]+)?\s*(MG|ML|GR|G|MCG|UI|U|UI\/ML|%|L|KG)\b/gi, '')
-                // Elimina formatos y palabras innecesarias
                 .replace(/\b(COMP|JBE|CAPS|SUSP|SOL|GTS|GOTAS|SOBRES|INY|CREMA|POMADA|UNG|OVULOS|AMP|FCO|TAB|PILD|CM|REC|FORTE|PLUS)\b/gi, '')
-                .replace(/[^A-ZÑ\s]/g, ' ') // Deja solo letras
-                .replace(/\s+/g, ' ') // Quita dobles espacios
+                .replace(/[^A-ZÑ\s]/g, ' ') 
+                .replace(/\s+/g, ' ') 
                 .trim();
         }
 
@@ -317,12 +312,13 @@
                 }
             }
 
-            // 2. Mapear Principios Activos Oficiales (ISP) - Diccionarios Semánticos
+            // 2. Mapear Principios Activos Oficiales (ISP)
             let ispMapExacto = {};
             let ispMapLimpio = {};
 
-            const COL_NOMBRE_ISP = 0;    
-            const COL_PRINCIPIO_ISP = 1; 
+            // ⚠️ CORRECCIÓN DE COLUMNAS SEGÚN TU IMAGEN ⚠️
+            const COL_NOMBRE_ISP = 1;    // Columna B (Índice 1)
+            const COL_PRINCIPIO_ISP = 3; // Columna D (Índice 3)
 
             if (rawDataIsp && rawDataIsp.length > 0) {
                 for (let i = 1; i < rawDataIsp.length; i++) { 
@@ -342,6 +338,9 @@
                     }
                 }
             }
+
+            // Llaves del ISP ordenadas para Fuzzy Match
+            const sortedIspKeys = Object.keys(ispMapLimpio).sort((a, b) => b.length - a.length);
 
             // 3. Procesar el Maestro Principal y aplicar el cruce
             let tempProducts = [];
@@ -376,32 +375,22 @@
                 
                 let principioActivo = row[12] ? String(row[12]).trim() : "";
                 
-                // --- MOTOR DE CRUCE INTELIGENTE ---
+                // MOTOR DE CRUCE INTELIGENTE (FUZZY MATCH)
                 if (ispMapExacto[nombreParaCruce]) {
-                    // Match Exacto 
                     principioActivo = ispMapExacto[nombreParaCruce];
                 } else if (ispMapLimpio[nombreLimpioMaestro]) {
-                    // Match Semántico (ej: "ALERPRIV 100 ML" == "ALERPRIV")
                     principioActivo = ispMapLimpio[nombreLimpioMaestro];
                 } else {
-                    // Adivinanza Segura (Verifica si la primera palabra es una marca única del ISP)
-                    let primeraPalabra = nombreLimpioMaestro.split(' ')[0];
-                    if (primeraPalabra && primeraPalabra.length >= 4) {
-                        let variantesISP = Object.keys(ispMapLimpio).filter(k => k.startsWith(primeraPalabra));
-                        if (variantesISP.length > 0) {
-                            let formulaBase = ispMapLimpio[variantesISP[0]];
-                            // Solo si TODAS las versiones de esa marca tienen exactamente los mismos compuestos (ej: todos los Nastizol)
-                            let todoIgual = variantesISP.every(k => ispMapLimpio[k] === formulaBase);
-                            if (todoIgual) {
-                                principioActivo = formulaBase;
-                            }
-                        }
+                    let bestMatch = sortedIspKeys.find(k => nombreLimpioMaestro.includes(k) || k.includes(nombreLimpioMaestro));
+                    if (bestMatch) {
+                        principioActivo = ispMapLimpio[bestMatch];
                     }
                 }
-                // --- FIN MOTOR CRUCE ---
 
                 // NORMALIZADOR DE PRINCIPIOS ACTIVOS (Fórmulas Limpias con "+")
                 let principioNormalizado = principioActivo
+                    .replace(/\s*\/\/\s*/g, ' + ') // Maneja los "//" del ISP
+                    .replace(/\s*\/\s*/g, ' + ')   // Maneja "/" simple
                     .replace(/\s*-\s*/g, ' + ')
                     .replace(/\s*;\s*/g, ' + ')
                     .replace(/\s*,\s*/g, ' + ')
@@ -455,7 +444,6 @@
         }
 
         function applyFilters() {
-            // Reemplazamos los "+" escritos por el usuario por espacios para que el buscador atrape las fórmulas
             const rawSearchInput = document.getElementById('searchInput').value.toLowerCase().trim();
             const terms = rawSearchInput === "" ? [] : rawSearchInput.replace(/\+/g, ' ').split(/\s+/);
             
@@ -488,7 +476,6 @@
                 
                 const labMatch = selectedLab === "" ? true : p.lab === selectedLab;
                 
-                // Ahora detectar un compuesto es simple: buscamos el "+"
                 let compoundMatch = true;
                 if (compoundFilter !== 'all') {
                     const isCompound = String(p.principio || "").includes('+');
