@@ -32,7 +32,6 @@
 </head>
 <body class="flex flex-col min-h-screen pb-24">
 
-    <!-- Header -->
     <header class="bg-white shadow-md sticky top-0 z-40">
         <div class="px-4 py-4 flex justify-between items-center max-w-7xl mx-auto w-full">
             <div class="flex items-center gap-3">
@@ -52,7 +51,6 @@
         </div>
     </header>
 
-    <!-- Hero Search -->
     <section class="bg-farmaPurple py-8 relative overflow-hidden">
         <div class="absolute inset-0 bg-gradient-to-b from-transparent to-black/20"></div>
         <div class="max-w-4xl mx-auto px-4 relative z-10 text-center">
@@ -64,7 +62,6 @@
                 <span id="fechaActualizacion" class="font-bold text-white bg-white/20 px-2 py-0.5 rounded"></span>
             </div>
 
-            <!-- Caja Principal -->
             <div class="bg-white p-2 rounded-2xl shadow-xl flex flex-col md:flex-row items-center gap-2">
                 <div class="w-full md:w-1/3 flex items-center border-b md:border-b-0 md:border-r border-gray-100 px-2">
                     <i class="fa-solid fa-flask text-farmaPurple mr-2"></i>
@@ -80,15 +77,12 @@
                     <input type="text" id="searchInput" class="w-full py-3 pr-36 text-base md:text-lg outline-none text-gray-700 bg-transparent placeholder-gray-400" placeholder="Nombre, síntoma o componente..." autocomplete="off" disabled>
                     
                     <div class="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
-                        <!-- Búsqueda Semántica IA -->
                         <button id="btnWand" onclick="smartAISearch()" class="bg-blue-500 text-white w-10 h-10 rounded-xl hover:bg-blue-600 shadow-md transition flex items-center justify-center" title="Búsqueda Inteligente (Síntomas)">
                             <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
                         </button>
-
                         <button onclick="triggerAICamera()" class="bg-farmaPurple text-white w-10 h-10 rounded-xl hover:bg-purple-700 shadow-md transition flex items-center justify-center" title="Analizar caja con IA">
                             <i class="fa-solid fa-camera text-lg"></i>
                         </button>
-
                         <button onclick="startScanner()" class="bg-farmaGreen text-white w-10 h-10 rounded-xl hover:bg-green-600 shadow-md transition flex items-center justify-center" title="Escanear Código">
                             <i class="fa-solid fa-barcode text-lg"></i>
                         </button>
@@ -97,7 +91,18 @@
                 </div>
             </div>
 
-            <!-- Selector Monodroga vs Compuestos -->
+            <div id="aiActiveBanner" class="hidden mt-4 bg-blue-50/95 backdrop-blur-sm border border-blue-200 rounded-xl p-3 text-left shadow-lg relative z-20 transition-all duration-300">
+                <div class="flex justify-between items-center gap-2">
+                    <div class="flex-grow">
+                        <h4 class="text-blue-900 font-extrabold text-sm"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-blue-500"></i> Resultados IA para: <span id="aiQueryText" class="text-blue-600"></span></h4>
+                        <p id="aiBrandsText" class="text-[11px] text-blue-700 mt-1 font-semibold opacity-80 leading-tight"></p>
+                    </div>
+                    <button onclick="clearAISearch()" class="text-blue-500 hover:text-white hover:bg-blue-500 bg-blue-100 rounded-lg w-8 h-8 flex items-center justify-center font-bold transition flex-shrink-0 shadow-sm border border-blue-200">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
             <div class="mt-5 flex justify-center w-full relative z-20">
                 <div class="bg-black/20 p-1 rounded-xl flex inline-flex text-xs md:text-sm font-bold backdrop-blur-sm border border-white/10 shadow-inner">
                     <button id="btnFilterAll" onclick="setCompoundFilter('all')" class="px-3 md:px-5 py-2 rounded-lg bg-white text-farmaPurple shadow-sm transition-all duration-300">Todos</button>
@@ -108,11 +113,10 @@
         </div>
     </section>
 
-    <!-- Main Content -->
     <main class="flex-grow w-full max-w-7xl mx-auto px-4 py-6">
         <div id="statusContainer" class="flex flex-col items-center justify-center text-gray-500 my-16 gap-3">
             <div class="loader"></div>
-            <span class="font-semibold text-base text-farmaPurple">Cargando catálogo actualizado...</span>
+            <span class="font-semibold text-base text-farmaPurple text-center">Conectando con el ISP y cruzando bases de datos...<br><span class="text-xs text-gray-400 font-normal">Esto puede tardar unos segundos</span></span>
         </div>
 
         <div class="flex justify-between items-center mb-4 hidden" id="resultsHeader">
@@ -123,7 +127,6 @@
         <div id="pagination" class="flex justify-center items-center gap-2 mt-10 mb-8 flex-wrap"></div>
     </main>
 
-    <!-- Barra Flotante del Carrito -->
     <div id="floatingCart" class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-50 transform translate-y-full transition-transform duration-300">
         <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
             <div class="flex flex-col">
@@ -136,7 +139,6 @@
         </div>
     </div>
 
-    <!-- Modal del Carrito -->
     <div id="cartModal" class="fixed inset-0 bg-black/60 z-[60] hidden opacity-0 flex justify-end">
         <div class="modal-content w-full md:w-[400px] bg-gray-50 h-full flex flex-col transform translate-x-full">
             <div class="bg-white px-5 py-4 flex justify-between items-center border-b border-gray-100 shadow-sm">
@@ -159,7 +161,6 @@
         </div>
     </div>
 
-    <!-- Modal del Escáner -->
     <div id="scannerModal" class="fixed inset-0 bg-black/80 z-[70] hidden flex-col justify-center items-center backdrop-blur-sm">
         <div class="bg-white p-5 rounded-2xl w-11/12 max-w-md relative shadow-2xl">
             <button onclick="stopScanner()" class="absolute top-3 right-4 text-gray-400 hover:text-red-500 text-3xl font-bold z-10 leading-none">&times;</button>
@@ -169,7 +170,6 @@
         </div>
     </div>
 
-    <!-- Modal de Resultados IA -->
     <div id="aiModal" class="fixed inset-0 bg-black/80 z-[80] hidden flex-col justify-center items-center backdrop-blur-sm">
         <div class="bg-white p-6 rounded-2xl w-11/12 max-w-md relative shadow-2xl">
             <button onclick="closeAIModal()" class="absolute top-3 right-4 text-gray-400 hover:text-red-500 text-3xl font-bold z-10 leading-none">&times;</button>
@@ -181,6 +181,13 @@
 
     <script>
         const URL_CSV_MAESTRO = "https://docs.google.com/spreadsheets/d/1GjVV8vuErPNmOIVkP-pk6VPiTrlf4IQby2v-OS0J3Zg/export?format=csv&gid=1307499139&nocache=" + new Date().getTime();
+        
+        const GID_EAN13 = "1436350776"; 
+        const URL_CSV_EAN13 = "https://docs.google.com/spreadsheets/d/1GjVV8vuErPNmOIVkP-pk6VPiTrlf4IQby2v-OS0J3Zg/export?format=csv&gid=" + GID_EAN13 + "&nocache=" + new Date().getTime();
+
+        // ⚠️ EL GID DE TU NUEVA BASE DEL ISP ⚠️
+        const GID_ISP = "123869210"; 
+        const URL_CSV_ISP = "https://docs.google.com/spreadsheets/d/1GjVV8vuErPNmOIVkP-pk6VPiTrlf4IQby2v-OS0J3Zg/export?format=csv&gid=" + GID_ISP + "&nocache=" + new Date().getTime();
 
         let allProducts = [];
         let filteredProducts = [];
@@ -195,19 +202,55 @@
 
         window.onload = () => {
             document.getElementById('searchInput').addEventListener('input', () => { 
-                // Al escribir manualmente, NO apagamos el filtro de la IA. Permitimos combinar búsquedas (IA + texto manual).
                 currentPage = 1; 
                 applyFilters(); 
             });
             document.getElementById('labFilter').addEventListener('change', () => { currentPage = 1; applyFilters(); });
 
-            Papa.parse(URL_CSV_MAESTRO, {
-                download: true,
-                header: false,
-                complete: function(results) { procesarDatos(results.data); },
-                error: function() { document.getElementById('statusContainer').innerHTML = "<p class='text-red-500 font-bold'>Error al cargar el catálogo.</p>"; }
-            });
+            cargarBasesDeDatos();
         };
+
+        // NUEVO: Descarga las TRES bases de datos al mismo tiempo
+        async function cargarBasesDeDatos() {
+            const fetchCSV = (url) => new Promise((resolve) => {
+                Papa.parse(url, {
+                    download: true,
+                    header: false,
+                    complete: (results) => resolve(results.data),
+                    error: (err) => resolve([]) 
+                });
+            });
+
+            try {
+                const [maestroData, ean13Data, ispData] = await Promise.all([
+                    fetchCSV(URL_CSV_MAESTRO),
+                    fetchCSV(URL_CSV_EAN13),
+                    fetchCSV(URL_CSV_ISP)
+                ]);
+
+                procesarDatos(maestroData, ean13Data, ispData);
+            } catch (error) {
+                console.error("Error crítico cargando datos:", error);
+                document.getElementById('statusContainer').innerHTML = "<p class='text-red-500 font-bold'>Error al cargar las bases de datos. Revisa tu conexión o el GID.</p>";
+            }
+        }
+
+        function clearAISearch() {
+            activeAISearchTerms = [];
+            document.getElementById('aiActiveBanner').classList.add('hidden');
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = "";
+            searchInput.placeholder = "Nombre, síntoma o componente...";
+            
+            const btnWand = document.getElementById('btnWand');
+            btnWand.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-lg"></i>';
+            btnWand.classList.remove('bg-red-500', 'hover:bg-red-600');
+            btnWand.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            btnWand.title = "Búsqueda Inteligente (Síntomas)";
+
+            currentPage = 1;
+            applyFilters();
+        }
 
         function setCompoundFilter(type) {
             compoundFilter = type;
@@ -231,33 +274,85 @@
             applyFilters();
         }
 
-        function procesarDatos(rawData) {
+        function procesarDatos(rawDataMaestro, rawDataEan, rawDataIsp) {
+            // 1. Mapear Códigos de Barra Extra (EAN13)
+            let barcodeMap = {};
+            if (rawDataEan && rawDataEan.length > 0) {
+                for (let i = 1; i < rawDataEan.length; i++) { 
+                    let row = rawDataEan[i];
+                    if (!row || row.length < 2) continue;
+                    let ean = String(row[0]).trim();
+                    let codi = String(row[1]).trim();
+                    if (ean && codi) {
+                        if (!barcodeMap[codi]) barcodeMap[codi] = [];
+                        barcodeMap[codi].push(ean);
+                    }
+                }
+            }
+
+            // 2. Mapear Principios Activos Oficiales (ISP)
+            let ispMap = {};
+            
+            // ⚠️ AJUSTA ESTOS DOS NÚMEROS A LAS COLUMNAS DE TU HOJA DEL ISP (A=0, B=1, C=2...) ⚠️
+            const COL_NOMBRE_ISP = 0;    // Columna donde está el nombre comercial (ej: TAPSIN)
+            const COL_PRINCIPIO_ISP = 1; // Columna donde está el principio activo
+
+            if (rawDataIsp && rawDataIsp.length > 0) {
+                for (let i = 1; i < rawDataIsp.length; i++) { // Asume que la fila 0 tiene títulos
+                    let row = rawDataIsp[i];
+                    if (!row || row.length <= Math.max(COL_NOMBRE_ISP, COL_PRINCIPIO_ISP)) continue;
+                    
+                    let nombreComercialISP = String(row[COL_NOMBRE_ISP]).trim().toUpperCase();
+                    let principioOficialISP = String(row[COL_PRINCIPIO_ISP]).trim().toUpperCase();
+                    
+                    if (nombreComercialISP && principioOficialISP) {
+                        // Guardamos el principio activo oficial asociado a ese nombre
+                        ispMap[nombreComercialISP] = principioOficialISP;
+                    }
+                }
+            }
+
+            // 3. Procesar el Maestro Principal y aplicar el cruce
             let tempProducts = [];
             let headerRowIndex = -1; 
             let lastUpdateStr = "(Sin fecha detectada)";
             
-            for (let i = 0; i < Math.min(15, rawData.length); i++) {
-                if (!rawData[i]) continue;
-                rawData[i].forEach(cell => {
+            for (let i = 0; i < Math.min(15, rawDataMaestro.length); i++) {
+                if (!rawDataMaestro[i]) continue;
+                rawDataMaestro[i].forEach(cell => {
                     let textCell = String(cell).trim();
                     if (textCell.toLowerCase().includes('fecha')) { lastUpdateStr = textCell; }
                 });
-                let rowStr = rawData[i].map(c => String(c).toUpperCase());
+                let rowStr = rawDataMaestro[i].map(c => String(c).toUpperCase());
                 if (rowStr.includes("LAB") && rowStr.includes("DETALLE")) { headerRowIndex = i; break; }
             }
             if (headerRowIndex === -1) headerRowIndex = 6;
 
-            for (let i = headerRowIndex + 1; i < rawData.length; i++) {
-                const row = rawData[i];
+            for (let i = headerRowIndex + 1; i < rawDataMaestro.length; i++) {
+                const row = rawDataMaestro[i];
                 if (!row || row.length < 8) continue;
 
                 let precioStr = typeof row[7] === 'string' ? row[7].replace(/[^0-9]/g, '') : row[7];
                 let precio = parseInt(precioStr);
                 let stock = parseInt(row[10]) || 0;
-                let nombre = String(row[4]).trim();
                 let labName = String(row[0]).trim();
-                let codigoBarras = row[3] ? String(row[3]).trim() : "";
+                let codigoInterno = String(row[2]).trim(); 
+                let codigoBarrasBase = row[3] ? String(row[3]).trim() : "";
+                
+                let nombre = String(row[4]).trim();
+                let nombreParaCruce = nombre.toUpperCase();
+                
+                // 🪄 El Cruce con el ISP: Si existe en el ISP, usamos el oficial. Si no, usamos el del maestro.
                 let principioActivo = row[12] ? String(row[12]).trim() : "";
+                if (ispMap[nombreParaCruce]) {
+                    principioActivo = ispMap[nombreParaCruce];
+                }
+
+                // Cruzamos códigos de barra
+                let todosLosCodigos = codigoBarrasBase;
+                if (barcodeMap[codigoInterno]) {
+                    todosLosCodigos += " " + barcodeMap[codigoInterno].join(" ");
+                }
 
                 if (nombre && !isNaN(precio) && precio > 0) {
                     tempProducts.push({
@@ -266,7 +361,7 @@
                         nombre: nombre,
                         precio: precio,
                         principio: principioActivo,
-                        barcode: codigoBarras, 
+                        barcode: todosLosCodigos.trim(), 
                         disponible: stock > 0 
                     });
                 }
@@ -304,11 +399,9 @@
                 let textMatch = false;
 
                 if (activeAISearchTerms.length > 0) {
-                    // Filtrado exigente con la IA (Regex para palabra exacta o coincidencia parcial limpia)
                     let matchIA = activeAISearchTerms.some(cleanTerm => {
                         try {
                             const safeTerm = cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                            // Busca la palabra aislada, evitando que "PAN" agarre "PANTOPRAZOL"
                             const regex = new RegExp(`\\b${safeTerm}\\b`, 'i');
                             return regex.test(p.nombre) || regex.test(p.principio);
                         } catch(e) {
@@ -317,14 +410,12 @@
                         }
                     });
 
-                    // Si el usuario escribe algo extra (ej "jarabe"), busca dentro de los resultados de la IA
                     if (terms[0] !== "") {
                         textMatch = matchIA && terms.every(t => searchable.includes(t));
                     } else {
                         textMatch = matchIA;
                     }
                 } else {
-                    // Búsqueda normal manual
                     textMatch = terms[0] === "" ? true : terms.every(t => searchable.includes(t));
                 }
                 
@@ -386,7 +477,9 @@
                     `;
                 }
 
-                let barcodeDisplay = item.barcode ? `<div class="text-[10px] font-mono text-gray-400 mb-2 mt-auto"><i class="fa-solid fa-barcode"></i> ${item.barcode}</div>` : '';
+                // Solo muestra en pantalla el PRIMER código de barras
+                let primaryBarcode = item.barcode ? item.barcode.split(" ")[0] : "";
+                let barcodeDisplay = primaryBarcode ? `<div class="text-[10px] font-mono text-gray-400 mb-2 mt-auto"><i class="fa-solid fa-barcode"></i> ${primaryBarcode}</div>` : '';
 
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
@@ -530,27 +623,14 @@
         // LÓGICA DE INTELIGENCIA ARTIFICIAL (GEMINI 3.1 FLASH-LITE)
         // ==========================================
         
-        // ⚠️ TU LLAVE API LISTA PARA USAR ⚠️
         const GEMINI_API_KEY = "AQ.Ab8RN6KZs-" + "NasdJEA3H0kCFyPEzLUC84R8nlZ0ecBgeJ3lwIWQ"; 
 
         async function smartAISearch() {
             const input = document.getElementById('searchInput');
             const btnWand = document.getElementById('btnWand');
             
-            // Apagar la IA si ya estaba encendida
             if (activeAISearchTerms.length > 0) {
-                activeAISearchTerms = [];
-                input.value = "";
-                input.placeholder = "Nombre, síntoma o componente...";
-                
-                // Restaura el diseño de la varita
-                btnWand.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-lg"></i>';
-                btnWand.classList.replace('bg-red-500', 'bg-blue-500');
-                btnWand.classList.replace('hover:bg-red-600', 'hover:bg-blue-600');
-                btnWand.title = "Búsqueda Inteligente (Síntomas)";
-                
-                currentPage = 1;
-                applyFilters();
+                clearAISearch();
                 return;
             }
 
@@ -569,7 +649,6 @@
             
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
             
-            // INSTRUCCIÓN BLINDADA: Evita marcas paraguas para químicos y censura vitaminas.
             const payload = {
                 contents: [{
                     parts: [{ 
@@ -595,13 +674,11 @@
                     try {
                         const rawTerms = JSON.parse(aiText);
                         
-                        // Limpia los espacios fantasma que dejaba la IA (ej: " TRIOVAL" -> "TRIOVAL")
                         activeAISearchTerms = rawTerms.map(term => term.trim()).filter(term => term.length >= 3);
                         
                         input.value = "";
                         input.placeholder = `✨ IA activa para: "${originalText}". Escribe para filtrar...`;
                         
-                        // Transformar la varita en una X roja
                         btnWand.innerHTML = '<i class="fa-solid fa-xmark text-xl"></i>';
                         btnWand.classList.replace('bg-blue-500', 'bg-red-500');
                         btnWand.classList.replace('hover:bg-blue-600', 'hover:bg-red-600');
@@ -623,7 +700,6 @@
             }
         }
 
-        // --- Resto de funciones de cámara intactas ---
         function triggerAICamera() {
             document.getElementById('cameraInput').click();
         }
@@ -642,15 +718,8 @@
             const searchInput = document.getElementById('searchInput');
             searchInput.value = selectedName;
             
-            // Forzar búsqueda manual, apagando la varita mágica si estaba activa
-            activeAISearchTerms = [];
-            const btnWand = document.getElementById('btnWand');
-            btnWand.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-lg"></i>';
-            btnWand.classList.remove('bg-red-500', 'hover:bg-red-600');
-            btnWand.classList.add('bg-blue-500', 'hover:bg-blue-600');
-            btnWand.title = "Búsqueda Inteligente (Síntomas)";
-
-            currentPage = 1;
+            clearAISearch(); 
+            searchInput.value = selectedName; 
             applyFilters();
         }
 
@@ -751,14 +820,8 @@
                         const fallbackName = aiText.split(',')[0].replace(/[\[\]"]/g, '').trim();
                         input.value = fallbackName;
                         
-                        activeAISearchTerms = [];
-                        const btnWand = document.getElementById('btnWand');
-                        btnWand.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-lg"></i>';
-                        btnWand.classList.remove('bg-red-500', 'hover:bg-red-600');
-                        btnWand.classList.add('bg-blue-500', 'hover:bg-blue-600');
-                        btnWand.title = "Búsqueda Inteligente (Síntomas)";
-
-                        currentPage = 1;
+                        clearAISearch();
+                        input.value = fallbackName;
                         applyFilters();
                     }
                 } else if (data.promptFeedback) {
