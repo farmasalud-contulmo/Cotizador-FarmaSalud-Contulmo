@@ -8,6 +8,7 @@
     <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
 
     <script>
@@ -221,13 +222,18 @@
         };
 
         async function cargarBasesDeDatos() {
+            // Un wrapper blindado para que las promesas nunca "exploten" la aplicación
             const fetchCSV = (url) => new Promise((resolve) => {
-                Papa.parse(url, {
-                    download: true,
-                    header: false,
-                    complete: (results) => resolve(results.data),
-                    error: (err) => resolve([]) 
-                });
+                try {
+                    Papa.parse(url, {
+                        download: true,
+                        header: false,
+                        complete: (results) => resolve(results.data),
+                        error: (err) => resolve([]) 
+                    });
+                } catch(e) {
+                    resolve([]);
+                }
             });
 
             try {
@@ -237,31 +243,19 @@
                     fetchCSV(URL_CSV_ISP)
                 ]);
 
-                // --- SISTEMA DETECTOR DE ERRORES 404 ---
-                // Si Github Pages devuelve un error 404, en vez de CSV descarga una página HTML de error.
-                let esError404 = maestroData.length > 0 && String(maestroData[0][0]).toLowerCase().includes('doctype html');
-                
-                if (maestroData.length < 5 || esError404) {
-                    document.getElementById('statusContainer').innerHTML = `
-                        <div class="text-red-500 text-center flex flex-col items-center justify-center p-6 bg-red-50 rounded-2xl border border-red-100 max-w-md mx-auto">
-                            <i class="fa-solid fa-triangle-exclamation text-5xl mb-4 text-red-400"></i>
-                            <h3 class="font-black text-xl mb-2">¡Catálogo No Encontrado!</h3>
-                            <p class="text-sm font-medium text-red-800 leading-snug">
-                                El archivo <b>Libro1.csv</b> no existe en GitHub. <br><br>
-                                <b>Solución:</b><br>
-                                1. Guarda tu Excel en la carpeta del computador.<br>
-                                2. Haz doble clic en <b>Subir_Catalogo.bat</b>.<br>
-                                3. Espera 2 minutos a que GitHub se actualice y recarga esta página.
-                            </p>
-                        </div>
-                    `;
-                    return; // Detiene la aplicación aquí mismo
-                }
-
                 procesarDatos(maestroData, ean13Data, ispData);
             } catch (error) {
                 console.error("Error crítico cargando datos:", error);
-                document.getElementById('statusContainer').innerHTML = "<p class='text-red-500 font-bold'>Error crítico de red.</p>";
+                document.getElementById('statusContainer').innerHTML = `
+                    <div class="text-red-500 text-center flex flex-col items-center justify-center p-6 bg-red-50 rounded-2xl border border-red-100 max-w-md mx-auto">
+                        <i class="fa-solid fa-wifi text-5xl mb-4 text-red-400"></i>
+                        <h3 class="font-black text-xl mb-2">Error de Sistema</h3>
+                        <p class="text-sm font-medium text-red-800 leading-snug">
+                            No se pudo ejecutar la aplicación.<br><br>
+                            Asegúrate de abrir el cotizador desde tu enlace de <b>GitHub Pages</b> y no haciendo doble clic en el archivo descargado en tu computador.
+                        </p>
+                    </div>
+                `;
             }
         }
 
@@ -316,6 +310,45 @@
         }
 
         function procesarDatos(rawDataMaestro, rawDataEan, rawDataIsp) {
+            
+            // --- NUEVO: DETECTOR DE CATÁLOGO FANTASMA ---
+            let headerRowIndex = -1; 
+            let lastUpdateStr = "(Sin fecha detectada)";
+            
+            for (let i = 0; i < Math.min(20, rawDataMaestro.length); i++) {
+                if (!rawDataMaestro[i]) continue;
+                rawDataMaestro[i].forEach(cell => {
+                    let textCell = String(cell).trim();
+                    if (textCell.toLowerCase().includes('fecha')) { lastUpdateStr = textCell; }
+                });
+                let rowStr = rawDataMaestro[i].map(c => String(c).toUpperCase());
+                if (rowStr.includes("LAB") && (rowStr.includes("DETALLE") || rowStr.includes("PRECIO"))) { 
+                    headerRowIndex = i; 
+                    break; 
+                }
+            }
+
+            // Si no encontró el formato de Ecanosoft, significa que leyó un error 404 de GitHub Pages
+            if (headerRowIndex === -1) {
+                document.getElementById('statusContainer').innerHTML = `
+                    <div class="text-red-500 text-center flex flex-col items-center justify-center p-6 bg-red-50 rounded-2xl border border-red-100 max-w-md mx-auto">
+                        <i class="fa-solid fa-triangle-exclamation text-5xl mb-4 text-red-400"></i>
+                        <h3 class="font-black text-xl mb-2">¡Catálogo No Encontrado!</h3>
+                        <p class="text-sm font-medium text-red-800 leading-snug">
+                            No se encontró el archivo <b>Libro1.csv</b> válido en la nube.<br><br>
+                            <b>¿Qué debes hacer?</b><br>
+                            1. Exporta tu Excel de Ecanosoft al escritorio.<br>
+                            2. Haz doble clic en el script <b>Subir_Catalogo.bat</b>.<br>
+                            3. Espera 2 minutos a que se suba a la nube y recarga esta página.
+                        </p>
+                    </div>
+                `;
+                return; // Corta la ejecución para no mostrar "0 productos"
+            }
+            // ---------------------------------------------
+
+
+            // 1. Mapear Códigos de Barra Extra (EAN13)
             let barcodeMap = {};
             let esValidoEAN = rawDataEan && rawDataEan.length > 0 && rawDataEan.some(row => row && String(row[0]).toUpperCase().includes("EAN_13"));
             
@@ -332,6 +365,7 @@
                 }
             }
 
+            // 2. Mapear Principios Activos Oficiales (ISP)
             let ispMapExacto = {};
             let ispMapLimpio = {};
 
@@ -367,20 +401,7 @@
             }
 
             let tempProducts = [];
-            let headerRowIndex = -1; 
-            let lastUpdateStr = "(Sin fecha detectada)";
             
-            for (let i = 0; i < Math.min(15, rawDataMaestro.length); i++) {
-                if (!rawDataMaestro[i]) continue;
-                rawDataMaestro[i].forEach(cell => {
-                    let textCell = String(cell).trim();
-                    if (textCell.toLowerCase().includes('fecha')) { lastUpdateStr = textCell; }
-                });
-                let rowStr = rawDataMaestro[i].map(c => String(c).toUpperCase());
-                if (rowStr.includes("LAB") && rowStr.includes("DETALLE")) { headerRowIndex = i; break; }
-            }
-            if (headerRowIndex === -1) headerRowIndex = 6;
-
             for (let i = headerRowIndex + 1; i < rawDataMaestro.length; i++) {
                 const row = rawDataMaestro[i];
                 if (!row || row.length < 8) continue;
@@ -399,6 +420,7 @@
                 let principioActivo = row[12] ? String(row[12]).trim() : "";
                 let principioEncontrado = "";
                 
+                // MOTOR DE CRUCE ULTRA-RÁPIDO (O(1) - Diccionario Directo)
                 if (ispMapExacto[nombreParaCruce]) {
                     principioEncontrado = ispMapExacto[nombreParaCruce];
                 } else if (ispMapLimpio[nombreLimpioMaestro]) {
