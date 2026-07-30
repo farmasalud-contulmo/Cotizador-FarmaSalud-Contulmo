@@ -210,6 +210,7 @@
         let html5QrcodeScanner = null;
         let compoundFilter = 'all'; 
         let activeAISearchTerms = [];
+        let imagenesBD = {}; // <-- NUEVA VARIABLE GLOBAL PARA IMÁGENES
 
         window.onload = () => {
             document.getElementById('searchInput').addEventListener('input', () => { 
@@ -235,6 +236,13 @@
                     resolve([]);
                 }
             });
+
+            // --- NUEVO: CARGAR EL MAPA DE IMÁGENES ---
+            try {
+                const resJson = await fetch("imagenes_map.json?nocache=" + new Date().getTime());
+                if (resJson.ok) imagenesBD = await resJson.json();
+            } catch (e) { console.log("Aún no hay banco de imágenes."); }
+            // -----------------------------------------
 
             try {
                 const [maestroData, ean13Data, ispData] = await Promise.all([
@@ -595,14 +603,34 @@
                     : `<div class="flex-grow"></div>`;
 
                 let primaryBarcode = item.barcode ? item.barcode.split(" ")[0] : "";
-                let barcodeDisplay = primaryBarcode ? `<div class="text-[10px] font-mono text-gray-400 mb-2"><i class="fa-solid fa-barcode"></i> ${primaryBarcode}</div>` : '';
+                
+                // --- NUEVO: SISTEMA DE IMÁGENES ---
+                let urlImagen = imagenesBD[primaryBarcode];
+                let imagenHtml = "";
+                
+                if (urlImagen && urlImagen !== "NO_IMAGE") {
+                    imagenHtml = `
+                    <div class="w-full h-32 flex items-center justify-center mb-3 p-2 bg-white rounded-xl">
+                        <img src="${urlImagen}" alt="${item.nombre}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">
+                    </div>`;
+                } else {
+                    let iconColor = item.disponible ? "text-farmaPurple/20" : "text-gray-200";
+                    imagenHtml = `
+                    <div class="w-full h-32 flex items-center justify-center bg-gray-50/50 border border-gray-100 rounded-xl mb-3">
+                        <i class="fa-solid fa-pills text-5xl ${iconColor}"></i>
+                    </div>`;
+                }
+                // ----------------------------------
+
+                let barcodeDisplay = primaryBarcode ? `<div class="text-[10px] font-mono text-gray-400 mb-2 mt-auto"><i class="fa-solid fa-barcode"></i> ${primaryBarcode}</div>` : '<div class="mt-auto"></div>';
 
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
                         <div class="text-[10px] font-black text-gray-400 uppercase tracking-wider">${item.lab}</div>
                         ${stockBadge}
                     </div>
-                    <h3 class="text-sm md:text-base font-bold text-gray-800 mb-2 leading-snug texto-ajustable">${item.nombre}</h3>
+                    ${imagenHtml} 
+                    <h3 class="text-sm md:text-base font-bold text-gray-800 mb-1 leading-snug texto-ajustable">${item.nombre}</h3>
                     ${principioDisplay}
                     ${barcodeDisplay}
                     <div class="text-2xl font-black text-farmaPurple leading-none">${clpFmt.format(item.precio)}</div>
